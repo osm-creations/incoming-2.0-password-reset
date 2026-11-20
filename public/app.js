@@ -9,11 +9,8 @@ const email = document.querySelector('#email');
 const password = document.querySelector('#password');
 const confirmation = document.querySelector('#confirm');
 
-const fragment = new URLSearchParams(location.hash.slice(1));
-let token = fragment.get('token');
-const openedLink = location.hash.length > 1;
-if (openedLink) history.replaceState(null, '', location.pathname + location.search);
-fragment.delete('token');
+let token = null;
+let pageVersion = 0;
 
 function screen(title, message, form, allowRestart = false, focus = true) {
   heading.textContent = title;
@@ -46,6 +43,7 @@ function showError(message) {
 
 async function submit(form, endpoint, body) {
   const button = form.querySelector('button');
+  const version = pageVersion;
   if (button.disabled) return null;
   button.disabled = true;
   form.setAttribute('aria-busy', 'true');
@@ -61,13 +59,14 @@ async function submit(form, endpoint, body) {
       signal: AbortSignal.timeout(30000)
     });
     const result = await response.json();
+    if (version !== pageVersion) return null;
     if (response.ok) return result;
     if (result.error?.code === 'RESET_LINK_INVALID') invalidLink();
     else if (response.status === 429) showError('Too many attempts. Please wait and try again.');
     else if (response.status === 422) showError('Check your entries and try again.');
     else showError('We couldn’t complete your request. Please try again.');
   } catch {
-    showError('Couldn’t reach Incoming. Check your connection and try again.');
+    if (version === pageVersion) showError('Couldn’t reach Incoming. Check your connection and try again.');
   } finally {
     button.disabled = false;
     form.removeAttribute('aria-busy');
@@ -100,7 +99,20 @@ resetForm.addEventListener('submit', async event => {
 
 resetForm.addEventListener('input', () => confirmation.setCustomValidity(''));
 restart.addEventListener('click', () => startRequest(true));
-if (!openedLink) startRequest(false);
-else if (token && token.length <= 512) {
-  screen('Set your password', 'Choose a new password for your Incoming account.', resetForm, false, false);
-} else invalidLink(false);
+function openLocation(focus) {
+  pageVersion += 1;
+  if (!location.hash) {
+    startRequest(focus);
+    return;
+  }
+  token = new URLSearchParams(location.hash.slice(1)).get('token');
+  history.replaceState(null, '', location.pathname + location.search);
+  resetForm.reset();
+  confirmation.setCustomValidity('');
+  if (token && token.length <= 512) {
+    screen('Set your password', 'Choose a new password for your Incoming account.', resetForm, false, focus);
+  } else invalidLink(focus);
+}
+
+window.addEventListener('hashchange', () => openLocation(true));
+openLocation(false);
