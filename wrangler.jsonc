@@ -1,0 +1,7 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "incoming-2-0-password-reset",
+  "compatibility_date": "2026-09-30",
+  "workers_dev": true,
+  "assets": { "directory": "./public" }
+}
