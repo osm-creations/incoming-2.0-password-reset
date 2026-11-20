@@ -1,0 +1,38 @@
+name: Verify password recovery screens
+on:
+  push:
+    branches: ['verify/build19-forms']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare Chromium test runner
+        run: npm install --prefix .qa-runtime --no-audit --no-fund playwright@1.56.0
+      - name: Verify password reset screens
+        run: |
+          set -eu
+          python3 .github/checks/serve.py > /tmp/reset-qa.log 2>&1 &
+          for i in {1..10}; do curl -fsS http://127.0.0.1:4289/ > /dev/null && break; sleep 1; done
+          CHROME_PATH="$(command -v google-chrome)" NODE_PATH="$GITHUB_WORKSPACE/.qa-runtime/node_modules" node .github/checks/web.cjs
+      - uses: actions/checkout@v4
+        with:
+          repository: osm-creations/incoming2.0-admin
+          ref: 076eb87ede4ad84f69df81b25576d4633c63c919
+          path: admin-fixture
+          persist-credentials: false
+      - name: Build and verify admin invitation states
+        run: |
+          set -eu
+          (cd admin-fixture && npm install --no-audit --no-fund && npm run build) 
+          (cd admin-fixture && ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4290) >/tmp/admin-qa.log 2>&1 &
+          for i in {1..15}; do curl -fsS http://127.0.0.1:4290/users >/dev/null && break; sleep 1; done
+          CHROME_PATH="$(command -v google-chrome)" NODE_PATH="$GITHUB_WORKSPACE/.qa-runtime/node_modules" node .github/checks/admin.cjs
